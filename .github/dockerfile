@@ -1,0 +1,26 @@
+# Use an official Python runtime as a parent image
+FROM python:3.11-slim
+
+# Set the working directory in the container
+WORKDIR /opt/application
+
+# Copy the app folder (from the parent directory relative to .github) into the container
+COPY ../app /opt/application
+
+# Install any needed dependencies specified in the requirements.txt file
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Change the permissions for the application directory
+RUN chmod 775 -R /opt/application && chown 1000:root -R /opt/application
+
+# Use a non-root user for running the application
+USER 1000
+
+# Expose port 8080 (used by Flask)
+EXPOSE 8080
+
+# Define environment variable for Python to handle output buffering
+ENV PYTHONUNBUFFERED=1
+
+# Command to run your Flask application
+ENTRYPOINT ["python", "main.py"]
