@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  pull_request:
+  merge_group:
+    branches:
+      - "main"
+  push:
+    branches:
+      - "main"
+
+jobs:
+  build_python:
+    name: Build and Test with Python
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r app/requirements.txt
+
+      # Start the server in the background
+      - name: Run Python script in the background
+        run: |
+          nohup python app/main.py &
+
+      # Run your tests, which might include integration tests that check if the server is running correctly
+      - name: Run tests
+        run: |
+          python -m unittest discover -s tests
+
+      # Optionally stop the server if needed
+      - name: Stop server (optional)
+        run: |
+          kill $(lsof -t -i:8080) || echo "Server already stopped"
