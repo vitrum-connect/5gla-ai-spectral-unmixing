@@ -26,10 +26,17 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r app/requirements.txt
 
-      - name: Run Python script
+      # Start the server in the background
+      - name: Run Python script in the background
         run: |
-          python app/main.py
+          nohup python app/main.py &
 
+      # Run your tests, which might include integration tests that check if the server is running correctly
       - name: Run tests
         run: |
           python -m unittest discover -s tests
+
+      # Optionally stop the server if needed
+      - name: Stop server (optional)
+        run: |
+          kill $(lsof -t -i:8080) || echo "Server already stopped"
