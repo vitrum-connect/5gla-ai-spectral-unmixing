@@ -1,4 +1,5 @@
 import os
+from xxsubtype import bench
 
 from minio import Minio
 from minio.error import S3Error
@@ -15,8 +16,7 @@ class PersistentStorageIntegrationService:
         self.bucket_name_for_stationary_images = os.getenv(
             "APP_S3_PRE_CONFIGURED_BUCKET_NAME_FOR_STATIONARY_IMAGES")
 
-        self.client = Minio(self.endpoint, access_key=self.access_key, secret_key=self.secret_key, secure=True)
-
+        self.client = Minio(self.endpoint, access_key=self.access_key, secret_key=self.secret_key, secure=False)
         logging.basicConfig(level=logging.INFO)
         self.logger = logging.getLogger(__name__)
 
@@ -106,3 +106,5 @@ class PersistentStorageIntegrationService:
 
 if __name__ == "__main__":
     storage_service = PersistentStorageIntegrationService()
+    files = list(storage_service._list_stationary_files())
+    breakpoint()
