@@ -1,1 +1,6 @@
 .idea/
+*.tif
+*.png
+data/
+Orthofotos/
+__pycache__/
