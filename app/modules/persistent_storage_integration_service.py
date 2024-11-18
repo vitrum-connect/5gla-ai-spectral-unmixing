@@ -1,10 +1,13 @@
 import os
 from xxsubtype import bench
 
+import numpy as np
 from minio import Minio
 from minio.error import S3Error
 import logging
 from io import BytesIO
+
+from app.paths_handler import PathsManager
 
 
 class PersistentStorageIntegrationService:
@@ -12,77 +15,138 @@ class PersistentStorageIntegrationService:
         self.endpoint = os.getenv("APP_S3_ENDPOINT")
         self.access_key = os.getenv("APP_S3_ACCESS_KEY")
         self.secret_key = os.getenv("APP_S3_SECRET_KEY")
-        self.bucket_name_for_images = os.getenv("APP_S3_PRE_CONFIGURED_BUCKET_NAME_FOR_IMAGES")
-        self.bucket_name_for_stationary_images = os.getenv(
-            "APP_S3_PRE_CONFIGURED_BUCKET_NAME_FOR_STATIONARY_IMAGES")
 
         self.client = Minio(self.endpoint, access_key=self.access_key, secret_key=self.secret_key, secure=False)
         logging.basicConfig(level=logging.INFO)
         self.logger = logging.getLogger(__name__)
 
-    def store_image(self, transaction_id, image):
-        filename = self._get_full_filename(image.tenant, transaction_id, image.filename)
-        self._store_image(image.raw_data, self.bucket_name_for_images, filename)
+        self.bucket_name_for_images = os.getenv("APP_S3_PRE_CONFIGURED_BUCKET_NAME_FOR_IMAGES")
+        self.bucket_name_for_stationary_images = os.getenv(
+            "APP_S3_PRE_CONFIGURED_BUCKET_NAME_FOR_STATIONARY_IMAGES")
 
-    def store_stationary_image(self, stationary_image):
-        filename = self._get_full_filename(stationary_image.tenant, stationary_image.filename)
-        self._store_image(stationary_image.raw_data, self.bucket_name_for_stationary_images, filename)
+        # output buckets
+        self.bucket_name_for_ai_results = os.getenv("APP_S3_BUCKET_NAME_FOR_AI_RESULTS")
+        self.bucket_name_for_registered = os.getenv("APP_S3_BUCKET_NAME_FOR_REGISTERED")
+        self.bucket_name_for_unmixed = os.getenv("APP_S3_BUCKET_NAME_FOR_UNMIXED")
+        self._ensure_bucket_exists(self.bucket_name_for_images)
+        self._ensure_bucket_exists(self.bucket_name_for_registered)
+        self._ensure_bucket_exists(self.bucket_name_for_unmixed)
 
-    def _store_image(self, image_data, bucket_name, filename):
+
+    def _ensure_bucket_exists(self, bucket_name):
+        """
+        Ensures that the specified bucket exists. If it doesn't, create it.
+
+        :param bucket_name: The name of the bucket to check/create.
+        """
         try:
+            if not self.client.bucket_exists(bucket_name):
+                self.client.make_bucket(bucket_name)
+                self.logger.info(f"Bucket '{bucket_name}' created successfully.")
+            else:
+                self.logger.info(f"Bucket '{bucket_name}' already exists.")
+        except S3Error as e:
+            self.logger.error(f"Error ensuring bucket '{bucket_name}' exists: {e}")
+            raise RuntimeError(f"Could not ensure bucket '{bucket_name}' exists.") from e
+
+    def upload_image_registered(self, image_data, pm: PathsManager):
+        bucket_name = self.bucket_name_for_registered
+        self._upload_image(image_data, bucket_name, pm)
+
+    def upload_image_unmixed(self, image_data, pm: PathsManager):
+        bucket_name = self.bucket_name_for_unmixed
+        self._upload_image(image_data, bucket_name, pm)
+
+    def _upload_image(self, image_data, bucket_name, pm: PathsManager):
+        try:
+            # Ensure image data is C-contiguous
+            if not image_data.flags['C_CONTIGUOUS']:
+                image_data = np.ascontiguousarray(image_data)
+
             if not self.client.bucket_exists(bucket_name):
                 self.client.make_bucket(bucket_name)
                 self.logger.info(f"Created bucket {bucket_name}")
 
+            # Convert the image data to bytes if needed
+            image_bytes = BytesIO(image_data.tobytes())
+
             self.client.put_object(
                 bucket_name,
-                filename,
-                data=BytesIO(image_data),
-                length=len(image_data),
+                pm.file_path_registered,
+                data=image_bytes,
+                length=len(image_data.tobytes()),
                 content_type="application/octet-stream"
             )
-            self.logger.info(f"Image stored successfully: {filename}")
+            self.logger.info(f"Image stored successfully: {pm.file_path_registered}")
         except S3Error as e:
             self.logger.error("Could not store image on S3.", exc_info=True)
             raise RuntimeError("Could not store image on S3. Check log for details.") from e
 
-    def get_unprocessed_stationary_data(self):
-        yield r"cache\stationary_images\IMG_0000"
-
-    def _list_stationary_files(self):
+    def _list_files_in_bucket(self, bucket_name):
         try:
-            objects = self.client.list_objects(self.bucket_name_for_stationary_images, recursive=True)
+            objects = self.client.list_objects(bucket_name, recursive=True)
             return objects
         except S3Error as e:
-            self.logger.error(f"Error listing files in bucket {self.bucket_name_for_stationary_images}: {e}")
+            self.logger.error(f"Error listing files in bucket {bucket_name}: {e}")
             return []
 
-    def store_stationary_files(self, cache_folder="cache"):
-        """
-        Downloads all listed files in the stationary images bucket to the local cache folder,
-        organizing them into subfolders based on their NUMBER identifier.
+    def iter_unprocessed(self):
+        unprocessed = self._identify_unprocessed()
+        for pm in self._store_files(unprocessed):
+            yield pm
+            for file in os.listdir(pm.cache_folder):
+                os.remove(os.path.join(pm.cache_folder, file))
+            os.rmdir(pm.cache_folder)
 
-        :param cache_folder: The root directory for storing downloaded files.
-        """
-        files = self._list_stationary_files()
 
-        for obj in files:
-            file_name = obj.object_name
+    def _identify_unprocessed(self):
+        files_stationary = self._list_files_in_bucket(self.bucket_name_for_stationary_images)
+        files_registered = self._list_files_in_bucket(self.bucket_name_for_registered)
+
+        meta_names_registered = []
+        for file in files_registered:
             try:
-                # Extract the NUMBER part from the file name, e.g., "IMG_0000_1.tif" -> "0000"
-                number_part = file_name.split('_')[1]
-                target_folder = os.path.join(cache_folder, number_part)
-                os.makedirs(target_folder, exist_ok=True)
+                meta_names_registered.append(PathsManager(file).file_path_registered)
+            except AssertionError as e:
+                continue
 
-                # Define the local file path
-                local_file_path = os.path.join(target_folder, os.path.basename(file_name))
+        meta_names_stationary = []
+        files_stationary_filtered = []
+        for file in files_stationary:
+            try:
+                path_registered = PathsManager(file).file_path_registered
+                if path_registered in meta_names_stationary:
+                    continue
+                meta_names_stationary.append(path_registered)
+            except AssertionError as e:
+                continue
+            files_stationary_filtered.append(file)
 
-                # Download the file and save it to the local file path
-                self.client.fget_object(self.bucket_name_for_stationary_images, file_name, local_file_path)
-                self.logger.info(f"Downloaded {file_name} to {local_file_path}")
+
+        unprocessed = [f for f, meta_name in zip(files_stationary_filtered, meta_names_stationary)
+                       if meta_name not in meta_names_registered]
+        return unprocessed
+
+
+    def _store_files(self, files):
+        """
+        Downloads given image files to the local cache folder,
+        organizing them into subfolders based on their NUMBER identifier.
+        """
+        processed = set()
+        for obj in files:
+            try:
+                pm = PathsManager(obj)
+                if pm.cache_folder in processed: # dont process same imagefile multiple times
+                    continue
+                processed.add(pm.cache_folder)
+                os.makedirs(pm.cache_folder, exist_ok=True)
+                for local_file_path, assumed_path_name_minio in zip(pm.file_paths_cache, pm.file_paths_stationary):
+                    self.client.fget_object(obj.bucket_name, assumed_path_name_minio, local_file_path)
+                yield pm
 
             except Exception as e:
-                self.logger.error(f"Error downloading {file_name}: {e}")
+                self.logger.error(f"Error downloading {obj.object_name}: {e}")
 
 
     def get_result_file(self, tenant, transaction_id):
@@ -106,5 +170,6 @@ class PersistentStorageIntegrationService:
 
 if __name__ == "__main__":
     storage_service = PersistentStorageIntegrationService()
+    storage_service.identify_unprocessed()
     files = list(storage_service._list_stationary_files())
     breakpoint()

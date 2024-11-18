@@ -59,11 +59,11 @@ def save_aligned_channels(im_aligned, output_dir='aligned_images', prefix='align
         output_channel = normalized_channel.astype(np.uint16)
 
         # Save the channel
-        output_path = os.path.join(output_dir, f"{prefix}_{i + 1}.tif")
-        output_paths.append(output_path)
-        cv2.imwrite(output_path, output_channel)
-        print(f"Saved normalized channel {i + 1} to {output_path}")
-    return output_paths
+        output_file = os.path.join(output_dir, f"{prefix}_{i + 1}.tif")
+        output_paths.append(output_file)
+        cv2.imwrite(output_file, output_channel)
+        print(f"Saved normalized channel {i + 1} to {output_file}")
+    return output_dir, output_paths
 
 def plot(captured, im_aligned):
     # Saving im_aligned as a TIFF file
@@ -108,8 +108,8 @@ def plot(captured, im_aligned):
 
 def run(image_path):
     captured, im_aligned = register_images(image_path)
-    output_paths = save_aligned_channels(im_aligned)
-    return captured, im_aligned, output_paths
+    output_folder, output_paths = save_aligned_channels(im_aligned)
+    return captured, im_aligned, output_folder
 
 
 if __name__ == '__main__':

@@ -44,15 +44,15 @@ def read_files(file_path):
     return stacked_channels
 
 def calc_masks(channels, k_plant = 0.6, k_no_plant = 0.4):
-    thresh_plant = np.max(channels[5]) * k_plant
-    thresh_no_plant = np.max(channels[5]) * k_no_plant
+    thresh_plant = np.max(channels[4]) * k_plant
+    thresh_no_plant = np.max(channels[4]) * k_no_plant
 
-    plant_mask = channels[5] > thresh_plant
+    plant_mask = channels[4] > thresh_plant
     # plant_mask &= content_mask
 
     plot(plant_mask, "plant_mask")
 
-    non_plant_mask = channels[5] < thresh_no_plant
+    non_plant_mask = channels[4] < thresh_no_plant
     # non_plant_mask &= content_mask
 
     plot(non_plant_mask, "non_plant_mask")
@@ -101,7 +101,8 @@ def reconstruct(channels, endmembers, unmix_result, remove_indices):
                                                                     )
     reconstructed_image[reconstructed_image < 0] = 0
     reconstructed_image = (reconstructed_image / np.max(reconstructed_image) * 255).astype(np.uint8)
-    cv2.imwrite('../Reconstructed Image.png', reconstructed_image)
+    return reconstructed_image
+    # cv2.imwrite('../Reconstructed Image.png', reconstructed_image)
     # plot(reconstructed_image[:,:,0:3], "Reconstructed Image")
 
 def run(file_path):
@@ -117,7 +118,8 @@ def run(file_path):
     endmembers, unmix_result = perform_unmix(channels, endmembers)
     remove_indices = list(range(n_plant, n_plant + n_non_plant))
     # remove_indices = list(range(0, n_plant))
-    reconstruct(channels, endmembers, unmix_result, remove_indices)
+    reconstructed = reconstruct(channels, endmembers, unmix_result, remove_indices)
+    return reconstructed
 
 if __name__ == "__main__":
     run()
