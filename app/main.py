@@ -34,7 +34,7 @@ def delayed_scheduled_run():
         # Calculate run duration
         run_duration = time.time() - start_time
         # Sleep for the remaining time until 10 minutes have passed
-        interval = int(os.getenv("ai_interval", 600))  # 600 seconds = 10 minutes
+        interval = int(os.getenv("INTERVAL_TIME_AI", 600))  # 600 seconds = 10 minutes
         sleep_time = max(0, interval - run_duration)
         time.sleep(sleep_time)
 

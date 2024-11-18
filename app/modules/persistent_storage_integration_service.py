@@ -20,14 +20,14 @@ class PersistentStorageIntegrationService:
         logging.basicConfig(level=logging.INFO)
         self.logger = logging.getLogger(__name__)
 
-        self.bucket_name_for_images = os.getenv("APP_S3_PRE_CONFIGURED_BUCKET_NAME_FOR_IMAGES")
+        self.bucket_name_for_images = os.getenv("S3_PRE_CONFIGURED_BUCKET_NAME_FOR_IMAGES")
         self.bucket_name_for_stationary_images = os.getenv(
-            "APP_S3_PRE_CONFIGURED_BUCKET_NAME_FOR_STATIONARY_IMAGES")
+            "S3_PRE_CONFIGURED_BUCKET_NAME_FOR_STATIONARY_IMAGES")
 
         # output buckets
-        self.bucket_name_for_ai_results = os.getenv("APP_S3_BUCKET_NAME_FOR_AI_RESULTS")
-        self.bucket_name_for_registered = os.getenv("APP_S3_BUCKET_NAME_FOR_REGISTERED")
-        self.bucket_name_for_unmixed = os.getenv("APP_S3_BUCKET_NAME_FOR_UNMIXED")
+        self.bucket_name_for_ai_results = os.getenv("S3_BUCKET_NAME_FOR_AI_RESULTS")
+        self.bucket_name_for_registered = os.getenv("S3_BUCKET_NAME_FOR_REGISTERED")
+        self.bucket_name_for_unmixed = os.getenv("S3_BUCKET_NAME_FOR_UNMIXED")
         self._ensure_bucket_exists(self.bucket_name_for_images)
         self._ensure_bucket_exists(self.bucket_name_for_registered)
         self._ensure_bucket_exists(self.bucket_name_for_unmixed)
