@@ -49,15 +49,21 @@ class PersistentStorageIntegrationService:
             self.logger.error(f"Error ensuring bucket '{bucket_name}' exists: {e}")
             raise RuntimeError(f"Could not ensure bucket '{bucket_name}' exists.") from e
 
-    def upload_image_registered(self, image_data, pm: PathsManager):
+    def upload_image_registered(self, image_data, pm: PathsManager, name_appendix=""):
         bucket_name = self.bucket_name_for_registered
-        self._upload_image(image_data, bucket_name, pm)
+        self._upload_image(image_data, bucket_name, pm, name_appendix)
 
-    def upload_image_unmixed(self, image_data, pm: PathsManager):
+    def upload_image_unmixed(self, image_data, pm: PathsManager, name_appendix=""):
         bucket_name = self.bucket_name_for_unmixed
-        self._upload_image(image_data, bucket_name, pm)
+        self._upload_image(image_data, bucket_name, pm, name_appendix)
 
-    def _upload_image(self, image_data, bucket_name, pm: PathsManager):
+    def _upload_image(self, image_data, bucket_name, pm: PathsManager, name_appendix=""):
+
+        if name_appendix:
+            splitted = pm.file_path_registered.split(".")
+            splitted[-2] += name_appendix
+            pm.file_path_registered = ".".join(splitted)
+
         try:
             # Ensure image data is C-contiguous
             if not image_data.flags['C_CONTIGUOUS']:

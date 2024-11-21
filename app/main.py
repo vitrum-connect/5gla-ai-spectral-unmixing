@@ -19,8 +19,9 @@ def run():
     for pm in psis.iter_unprocessed(): #path_channels, path_parts, number_part
         captured, im_aligned, registered_images_folder = image_registration.run(pm.cache_folder)
         psis.upload_image_registered(im_aligned, pm)
-        unmixed = unmixing.run(registered_images_folder)
-        psis.upload_image_unmixed(unmixed, pm)
+        unmixed, abundances = unmixing.run(registered_images_folder)
+        psis.upload_image_unmixed(unmixed, pm, name_appendix="reconstructed")
+        psis.upload_image_unmixed(abundances, pm, name_appendix="_abundances")
     return "Run completed"
 
 
