@@ -2,22 +2,15 @@ import glob
 import os
 
 import cv2
-# import exiftool
 import numpy as np
 import matplotlib.pyplot as plt
 import imageprocessing.micasense.imageutils as imageutils
-# import imageprocessing.micasense.plotutils as plotutils
 import imageprocessing.micasense.capture as capture
-# from imageprocessing.batch_processing_script import outputPath
-
-
-# exiftool.ExifTool(r'C:\Program Files\exiftool-12.98_64\exiftool.exe')
 
 def register_images(imagePath=os.path.join('../..', 'data'),
                     match_index=1,  # Index of the band, here we use green
                     max_alignment_iterations=30,
                     warp_mode=cv2.MOTION_HOMOGRAPHY,
-                    # MOTION_HOMOGRAPHY or MOTION_AFFINE. For Altum images only use HOMOGRAPHY
                     pyramid_levels=None,  # for 10-band imagery we use a 3-level pyramid. In some cases
                     name_pattern='*.tif'
                     ):
@@ -37,9 +30,6 @@ def register_images(imagePath=os.path.join('../..', 'data'),
 
     print("Finished Aligning, warp matrices={}".format(warp_matrices))
 
-    # cropped_dimensions, edges = imageutils.find_crop_bounds(captured, warp_matrices, warp_mode=warp_mode)
-    # im_aligned = imageutils.aligned_capture(captured, warp_matrices, warp_mode, cropped_dimensions, match_index,
-    #                                         img_type=img_type)
     im_aligned = captured.create_aligned_capture(warp_matrices=warp_matrices, motion_type=warp_mode, img_type=img_type)
     return captured, im_aligned
 
@@ -66,13 +56,6 @@ def save_aligned_channels(im_aligned, output_dir='aligned_images', prefix='align
     return output_dir, output_paths
 
 def plot(captured, im_aligned):
-    # Saving im_aligned as a TIFF file
-    # output_path = os.path.join(imagePath, 'aligned_image.tif')
-    # cv2.imwrite(output_path, im_aligned.astype(np.float32))  # Saving as a 32-bit TIFF image
-    # print(f"Aligned image saved at: {output_path}")
-
-
-    # figsize=(30,23) # use this size for full-image-resolution display
     figsize = (16, 13)  # use this size for export-sized display
 
     rgb_band_indices = [captured.band_names().index('Red'), captured.band_names().index('Green'),
