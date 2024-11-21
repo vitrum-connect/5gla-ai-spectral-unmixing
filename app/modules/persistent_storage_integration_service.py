@@ -34,11 +34,6 @@ class PersistentStorageIntegrationService:
 
 
     def _ensure_bucket_exists(self, bucket_name):
-        """
-        Ensures that the specified bucket exists. If it doesn't, create it.
-
-        :param bucket_name: The name of the bucket to check/create.
-        """
         try:
             if not self.client.bucket_exists(bucket_name):
                 self.client.make_bucket(bucket_name)
