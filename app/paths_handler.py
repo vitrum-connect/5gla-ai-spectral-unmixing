@@ -12,12 +12,6 @@ clustered
 class PathsManager():
     def __init__(self, file_object):
 
-        # self.file_names_stationary
-        # self.file_name_registered
-        # self.file_names_unmixed
-        # self.file_names_clustered
-        # bucket_name = file_object.bucket_name
-
         self._path_parts = file_object.object_name.split("/")
         _file_name_parts = self._path_parts[-1].split('_')
         assert len(_file_name_parts) >= 2, f"{file_object.object_name} doesn't satisfy naming convention"
