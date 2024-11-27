@@ -6,6 +6,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import imageprocessing.micasense.imageutils as imageutils
 import imageprocessing.micasense.capture as capture
+from app.modules.utils import save_channels
+
 
 def register_images(imagePath=os.path.join('../..', 'data'),
                     match_index=1,  # Index of the band, here we use green
@@ -33,27 +35,6 @@ def register_images(imagePath=os.path.join('../..', 'data'),
     im_aligned = captured.create_aligned_capture(warp_matrices=warp_matrices, motion_type=warp_mode, img_type=img_type)
     return captured, im_aligned
 
-
-def save_aligned_channels(im_aligned, output_dir='aligned_images', prefix='aligned_channel'):
-    # Ensure output directory exists
-    os.makedirs(output_dir, exist_ok=True)
-    output_paths = []
-    # Save each channel as a separate TIFF file
-    for i in range(im_aligned.shape[2]):  # Assuming channels are in the last dimension
-        channel = im_aligned[:, :, i]
-
-        # Normalize channel to [0, 65535] for 16-bit TIFF
-        normalized_channel = cv2.normalize(channel, None, alpha=0, beta=65535, norm_type=cv2.NORM_MINMAX)
-
-        # Convert to 16-bit unsigned integer
-        output_channel = normalized_channel.astype(np.uint16)
-
-        # Save the channel
-        output_file = os.path.join(output_dir, f"{prefix}_{i + 1}.tif")
-        output_paths.append(output_file)
-        cv2.imwrite(output_file, output_channel)
-        print(f"Saved normalized channel {i + 1} to {output_file}")
-    return output_dir, output_paths
 
 def plot(captured, im_aligned):
     figsize = (16, 13)  # use this size for export-sized display
@@ -91,7 +72,7 @@ def plot(captured, im_aligned):
 
 def run(image_path):
     captured, im_aligned = register_images(image_path)
-    output_folder, output_paths = save_aligned_channels(im_aligned)
+    output_folder, output_paths = save_channels(im_aligned)
     return captured, im_aligned, output_folder
 
 
