@@ -1,18 +1,8 @@
 import os
 
-cache_folder = "cache"
-
-"""
-5 channel files in stationary
-registered
-unmixed
-clustered
-
-"""
-
 
 class PathsManager:
-    def __init__(self, file_object):
+    def __init__(self, file_object, cache_folder = "cache"):
         self._path_parts = file_object.object_name.split("/")
         _file_name_parts = self._path_parts[-1].split('_')
         assert len(_file_name_parts) >= 2, f"{file_object.object_name} doesn't satisfy naming convention"
