@@ -1,4 +1,5 @@
 import os
+
 cache_folder = "cache"
 
 """
@@ -9,15 +10,9 @@ clustered
 
 """
 
-class PathsManager():
+
+class PathsManager:
     def __init__(self, file_object):
-
-        # self.file_names_stationary
-        # self.file_name_registered
-        # self.file_names_unmixed
-        # self.file_names_clustered
-        # bucket_name = file_object.bucket_name
-
         self._path_parts = file_object.object_name.split("/")
         _file_name_parts = self._path_parts[-1].split('_')
         assert len(_file_name_parts) >= 2, f"{file_object.object_name} doesn't satisfy naming convention"
@@ -30,13 +25,13 @@ class PathsManager():
         number_part = self._file_name_parts[1]
 
         self.file_paths_stationary = [self._get_assumed_path_name_minio(channel) for channel in channels]
-        self.file_paths_stationary = [self._get_assumed_path_name_minio(x) for x in channels]
-        self.file_path_registered = "/".join(self._path_parts[0:-1]) + "/" + f"{self._file_name_parts[0]}_{self._file_name_parts[1]}.{self._file_format}"
+        self.file_path_registered = "/".join(
+            self._path_parts[0:-1]) + "/" + f"{self._file_name_parts[0]}_{self._file_name_parts[1]}.{self._file_format}"
         self.file_name_unmixed = ""
 
         self.cache_folder = os.path.join(cache_folder, *self._path_parts[0:-1], number_part)
         self.file_paths_cache = [os.path.join(self.cache_folder, self._get_assumed_file_name(channel))
-                           for channel in channels]
+                                 for channel in channels]
 
     def _get_assumed_file_name(self, channel_nr):
         assumed_file_name = f"{self._file_name_parts[0]}_{self._file_name_parts[1]}_{channel_nr}.{self._file_format}"
