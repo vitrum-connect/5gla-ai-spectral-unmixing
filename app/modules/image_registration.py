@@ -33,7 +33,8 @@ def register_images(imagePath=os.path.join('../..', 'data'),
     print("Finished Aligning, warp matrices={}".format(warp_matrices))
 
     im_aligned = captured.create_aligned_capture(warp_matrices=warp_matrices, motion_type=warp_mode, img_type=img_type)
-    return captured, im_aligned
+    im_aligned_norm = cv2.normalize(im_aligned, None, alpha=0, beta=65535, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_16U)
+    return captured, im_aligned_norm
 
 
 def plot(captured, im_aligned):
