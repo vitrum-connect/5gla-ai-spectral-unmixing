@@ -80,12 +80,12 @@ def plot(img, title, show=False, **kwargs):
     plt.close()  # Close the figure to free up memory
 
 
-def save_channels(im_aligned, output_dir='aligned_images', prefix='aligned_channel'):
+def save_channels(img, output_dir='aligned_images', prefix='aligned_channel'):
     # Ensure output directory exists
     os.makedirs(output_dir, exist_ok=True)
     output_paths = []
     # Save each channel as a separate TIFF file
-    channels = [im_aligned[:, :, i] for i in range(im_aligned.shape[2])] if len(im_aligned.shape) > 1 else [im_aligned]
+    channels = [img[:, :, i] for i in range(img.shape[2])] if len(img.shape) > 1 else [img]
     for i, channel in enumerate(channels):  # Assuming channels are in the last dimension
         output_file = os.path.join(output_dir, f"{prefix}_{i + 1}.tif")
         output_paths.append(output_file)
