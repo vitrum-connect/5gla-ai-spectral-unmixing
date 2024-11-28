@@ -1,3 +1,4 @@
+import logging
 import os
 
 import rasterio
@@ -6,16 +7,24 @@ from sklearn.cluster import KMeans
 import numpy as np
 from app.modules.utils import reconstruct_image_with_removed_endmembers, plot, save_channels
 
+logger = logging.getLogger(__name__)
 
-def find_best_n_elbow(data, max_clusters=5):
+
+def find_best_n_elbow(data, max_clusters=9):
     # Store the sum of squared distances (inertia) for each value of n
     inertia = []
     cluster_nrs = range(1, max_clusters + 1)
     for n in cluster_nrs:
         kmeans = KMeans(n_clusters=n, random_state=0).fit(data)
         inertia.append(kmeans.inertia_)
-    scores = [iner * np.sqrt(nr_clusters) for iner, nr_clusters in zip(inertia, cluster_nrs)]
-    return cluster_nrs[scores.index(min(scores))]
+
+    # Compute second derivative
+    first_derivative = np.diff(inertia)
+    second_derivative = np.diff(first_derivative)
+
+    # Find the elbow (steepest change)
+    elbow = np.argmin(second_derivative) + 2  # +2 to account for diff offsets
+    return cluster_nrs[elbow]
 
 def read_file(file_path = "../Orthofotos/20240829_15_Ortho.tif"):
     with rasterio.open(file_path) as src:
@@ -38,19 +47,12 @@ def read_files(file_path):
     channels = stacked_channels.transpose((1, 2, 0))
     return channels
 
-def calc_masks(channels, k_plant = 0.6, k_no_plant = 0.4):
+def calc_masks(channels):
     thresh_plant = np.percentile(channels[:,:,4].flatten(),80)
     thresh_no_plant = np.percentile(channels[:,:,4].flatten(),10)
-    # thresh_plant = im_max * k_plant
-    # thresh_no_plant = im_max * k_no_plant
     plant_mask = channels[:,:,4] > thresh_plant
     non_plant_mask = channels[:,:,4] < thresh_no_plant
     return plant_mask, non_plant_mask
-
-# def norm_channels(channels):
-#     channels = channels.transpose((1, 2, 0))
-#     channels = (channels / np.max(channels) * 255).astype(np.uint8)
-#     return channels
 
 def find_endmembers(channels, mask, n=None):
     slice = channels[mask]
@@ -78,8 +80,8 @@ def reconstruct(channels, endmembers, unmix_result, remove_indices):
     reconstructed_image = (reconstructed_image / np.max(reconstructed_image) * 255).astype(np.uint8)
     return reconstructed_image
 
-def run(file_path):
-    channels = read_files(file_path)
+def run(channels):
+    # channels = read_files(file_path)
     plant_mask, non_plant_mask = calc_masks(channels)
     # channels = norm_channels(channels)
 
@@ -87,33 +89,17 @@ def run(file_path):
     endmembers_non_plant, n_non_plant = find_endmembers(channels, non_plant_mask)
     endmembers = np.concatenate((endmembers_plant, endmembers_non_plant))
 
+    logger.info(f"endmember_plant: {endmembers_plant}")
+    logger.info(f"endmember_non_plant: {endmembers_non_plant}")
+
     endmembers, abundances = perform_unmix(channels, endmembers)
     remove_indices = list(range(n_plant, n_plant + n_non_plant))
     reconstructed = reconstruct(channels, endmembers, abundances, remove_indices)
     save_channels(reconstructed, output_dir="unmixed", prefix="unmixed")
     save_channels(abundances, output_dir="endmembers", prefix="endmembers")
 
-    calc_savi(abundances, channels, n_plant)
+    return reconstructed, abundances, endmembers_plant, endmembers_non_plant
 
-    return reconstructed, abundances
-
-
-def calc_savi(abundances, channels, n_plant):
-    # calc N matrix
-    abundances_plant = abundances[:, :, 0:n_plant]
-    # abundances_non_plant = abundances[:, :, n_plant::]
-    abundances_plant_sum = np.sum(abundances_plant, axis=2)
-    # abundances_non_plant_sum = np.sum(abundances_non_plant, axis=2)
-    soil_correction = np.abs((abundances_plant_sum / np.max(abundances_plant_sum)) ** 0.1 - 1)
-    soil_correction = (soil_correction - np.min(soil_correction)) / np.max(soil_correction)
-
-    # import cv2
-    # b = cv2.normalize(soil_correction, None, alpha=0, beta=65535, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_16U)
-    # cv2.imwrite("soil_correction.png", b)
-    #
-    nir = channels[:, :, 4]
-    red = channels[:, :, 2]
-    savi = (nir - red) / (nir + red + soil_correction) * (1 / (soil_correction + 0.001))
 
 
 if __name__ == "__main__":

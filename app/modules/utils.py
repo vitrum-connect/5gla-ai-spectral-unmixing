@@ -84,20 +84,9 @@ def save_channels(im_aligned, output_dir='aligned_images', prefix='aligned_chann
     # Ensure output directory exists
     os.makedirs(output_dir, exist_ok=True)
     output_paths = []
-    # a = cv2.normalize(im_aligned, None, alpha=0, beta=65535, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_16U)
     # Save each channel as a separate TIFF file
-    for i in range(im_aligned.shape[2]):  # Assuming channels are in the last dimension
-        channel = im_aligned[:, :, i]
-        #
-        # if channel.dtype == np.uint8:
-        #     channel = channel.astype(np.uint16)
-        #
-        # # Normalize channel to [0, 65535] for 16-bit TIFF
-        # normalized_channel = cv2.normalize(channel, None, alpha=0, beta=65535, norm_type=cv2.NORM_MINMAX)
-        # if channel.dtype != np.uint16:
-        #     normalized_channel = normalized_channel.astype(np.uint16)
-
-        # Save the channel
+    channels = [im_aligned[:, :, i] for i in range(im_aligned.shape[2])] if len(im_aligned.shape) > 1 else [im_aligned]
+    for i, channel in enumerate(channels):  # Assuming channels are in the last dimension
         output_file = os.path.join(output_dir, f"{prefix}_{i + 1}.tif")
         output_paths.append(output_file)
         cv2.imwrite(output_file, channel)
