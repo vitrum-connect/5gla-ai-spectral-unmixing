@@ -53,12 +53,11 @@ class PersistentStorageIntegrationService:
         self._upload_image(image_data, bucket_name, pm, name_appendix)
 
     def _upload_image(self, image_data, bucket_name, pm: PathsManager, name_appendix=""):
-
+        file_path = pm.file_path_registered
         if name_appendix:
-            splitted = pm.file_path_registered.split(".")
+            splitted = file_path.split(".")
             splitted[-2] += name_appendix
-            pm.file_path_registered = ".".join(splitted)
-
+            file_path = ".".join(splitted)
         try:
             # Ensure image data is C-contiguous
             if not image_data.flags['C_CONTIGUOUS']:
@@ -73,12 +72,12 @@ class PersistentStorageIntegrationService:
 
             self.client.put_object(
                 bucket_name,
-                pm.file_path_registered,
+                file_path,
                 data=image_bytes,
                 length=len(image_data.tobytes()),
                 content_type="application/octet-stream"
             )
-            self.logger.info(f"Image stored successfully: {pm.file_path_registered}")
+            self.logger.info(f"Image stored successfully: {file_path}")
         except S3Error as e:
             self.logger.error("Could not store image on S3.", exc_info=True)
             raise RuntimeError("Could not store image on S3. Check log for details.") from e

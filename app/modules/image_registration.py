@@ -14,12 +14,11 @@ def register_images(imagePath=os.path.join('../..', 'data'),
                     max_alignment_iterations=30,
                     warp_mode=cv2.MOTION_HOMOGRAPHY,
                     pyramid_levels=None,  # for 10-band imagery we use a 3-level pyramid. In some cases
-                    name_pattern='*.tif'
+                    name_pattern='*.tif',
+                    img_type = 'reflectance'
                     ):
     imageNames = glob.glob(os.path.join(imagePath, name_pattern))
     captured = capture.Capture.from_filelist(imageNames)
-
-    img_type = 'reflectance' if captured.dls_present() else "radiance"
 
     print("Aligning images. Depending on settings this can take from a few seconds to many minutes")
     # Can potentially increase max_iterations for better results, but longer runtimes
@@ -32,8 +31,8 @@ def register_images(imagePath=os.path.join('../..', 'data'),
 
     print("Finished Aligning, warp matrices={}".format(warp_matrices))
 
-    im_aligned = captured.create_aligned_capture(warp_matrices=warp_matrices, motion_type=warp_mode, img_type=img_type)
-    return captured, im_aligned
+    im_aligned_reflectance = captured.create_aligned_capture(warp_matrices=warp_matrices, motion_type=warp_mode, img_type=img_type)
+    return captured, im_aligned_reflectance
 
 
 def plot(captured, im_aligned):
@@ -71,9 +70,11 @@ def plot(captured, im_aligned):
     plt.show()
 
 def run(image_path):
-    captured, im_aligned = register_images(image_path)
-    output_folder, output_paths = save_channels(im_aligned)
-    return captured, im_aligned, output_folder
+    captured, im_aligned_reflectance = register_images(image_path)
+    im_aligned_reflectance_norm = cv2.normalize(im_aligned_reflectance, None, alpha=0, beta=65535,
+                                                norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_16U)
+    output_folder, output_paths = save_channels(im_aligned_reflectance_norm)
+    return captured, im_aligned_reflectance, im_aligned_reflectance_norm, output_folder
 
 
 if __name__ == '__main__':
