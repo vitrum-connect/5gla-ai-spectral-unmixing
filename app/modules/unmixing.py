@@ -4,7 +4,7 @@ import rasterio
 from spectral import unmix
 from sklearn.cluster import KMeans
 import numpy as np
-from app.modules.utils import reconstruct_image_with_removed_endmembers, plot
+from app.modules.utils import reconstruct_image_with_removed_endmembers, plot, save_channels
 
 
 def find_best_n_elbow(data, max_clusters=5):
@@ -57,13 +57,10 @@ def find_endmembers(channels, mask, n=None):
     endmembers = kmeans.cluster_centers_
     return endmembers, n
 
-def perform_unmix(channels, endmembers):
+def perform_unmix(channels, endmembers, clip_negative=True):
     unmix_result = unmix(channels, endmembers)
-    unmix_result[unmix_result < 0] = 0
-
-    for i in range(unmix_result.shape[-1]):
-        result = unmix_result[:, :, i]
-        plot(result, f"result {i}", cmap='viridis')
+    if clip_negative:
+        unmix_result[unmix_result < 0] = 0
     return endmembers, unmix_result
 
 def reconstruct(channels, endmembers, unmix_result, remove_indices):
@@ -89,6 +86,8 @@ def run(file_path):
     endmembers, unmix_result = perform_unmix(channels, endmembers)
     remove_indices = list(range(n_plant, n_plant + n_non_plant))
     reconstructed = reconstruct(channels, endmembers, unmix_result, remove_indices)
+    save_channels(reconstructed, output_dir="unmixed", prefix="unmixed")
+    save_channels(unmix_result, output_dir="endmembers", prefix="endmembers")
     return reconstructed, unmix_result
 
 if __name__ == "__main__":
