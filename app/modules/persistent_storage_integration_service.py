@@ -3,11 +3,13 @@ from xxsubtype import bench
 
 import numpy as np
 from minio import Minio
+from minio.commonconfig import Tags
 from minio.error import S3Error
 import logging
 from io import BytesIO
 
 import tifffile
+from tifffile import imwrite, imread
 
 from app.paths_handler import PathsManager
 
@@ -56,30 +58,49 @@ class PersistentStorageIntegrationService:
 
     def _upload_image(self, image_data, bucket_name, pm: PathsManager, name_appendix=""):
         file_path = pm.file_path_registered
+        file_path_metadata = pm.file_paths_cache[0]  # Path to the metadata TIFF file
+
         if name_appendix:
             splitted = file_path.split(".")
             splitted[-2] += name_appendix
             file_path = ".".join(splitted)
-        try:
-            # Ensure image data is C-contiguous
-            if not image_data.flags['C_CONTIGUOUS']:
-                image_data = np.ascontiguousarray(image_data)
 
+        # Create Tags instance
+        tags = Tags(for_object=True)
+
+        # Load tags (metadata) from the other file if provided
+        if file_path_metadata:
+            try:
+                with tifffile.TiffFile(file_path_metadata) as tif:
+                    # Extract tags from TIFF file
+                    for tag_name, tag in tif.pages[0].tags.items():
+                        if tag.valuebytecount < 32:  # Optional filter for smaller tags
+                            tags[tag.name] = str(tag.value)  # Ensure values are string for tags
+            except Exception as e:
+                self.logger.error(f"Failed to load tags from {file_path_metadata}: {e}")
+                raise
+
+        try:
             if not self.client.bucket_exists(bucket_name):
                 self.client.make_bucket(bucket_name)
                 self.logger.info(f"Created bucket {bucket_name}")
 
-            # Convert the image data to bytes if needed
-            image_bytes = BytesIO(image_data.tobytes())
+            # Write image to TIFF format
+            tiff_buffer = BytesIO()
+            imwrite(tiff_buffer, image_data, photometric='minisblack', planarconfig='contig')
+            tiff_buffer.seek(0)
 
+            # Upload TIFF file with tags
             self.client.put_object(
                 bucket_name,
                 file_path,
-                data=image_bytes,
-                length=len(image_data.tobytes()),
-                content_type="application/octet-stream"
+                data=tiff_buffer,
+                length=tiff_buffer.getbuffer().nbytes,
+                content_type="image/tiff",
+                tags=tags  # Pass tags as the Tags object
             )
             self.logger.info(f"Image stored successfully: {file_path}")
+
         except S3Error as e:
             self.logger.error("Could not store image on S3.", exc_info=True)
             raise RuntimeError("Could not store image on S3. Check log for details.") from e
