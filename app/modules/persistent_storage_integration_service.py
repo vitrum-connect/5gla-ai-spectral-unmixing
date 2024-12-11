@@ -7,6 +7,8 @@ from minio.error import S3Error
 import logging
 from io import BytesIO
 
+import tifffile
+
 from app.paths_handler import PathsManager
 
 
@@ -89,6 +91,20 @@ class PersistentStorageIntegrationService:
         except S3Error as e:
             self.logger.error(f"Error listing files in bucket {bucket_name}: {e}")
             return []
+
+    def get_time_of_capture(self, bucket_name, object_name):
+        # Download object into memory
+        try:
+            response = self.client.get_object(bucket_name, object_name)
+            with BytesIO(response.data) as tiff_data:
+                with tifffile.TiffFile(tiff_data) as tif:
+                    # Metadata is often stored in the TIFF tags
+                    tags = tif.pages[0].tags
+                    time_of_capture = tags.get('DateTime', None)
+                    return time_of_capture.value if time_of_capture else None
+        except Exception as e:
+            print(f"Error extracting metadata from {object_name}: {e}")
+            return None
 
     def iter_unprocessed(self):
         unprocessed = self._identify_unprocessed()
