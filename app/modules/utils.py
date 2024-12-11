@@ -85,7 +85,7 @@ def save_channels(img, output_dir='aligned_images', prefix='aligned_channel'):
     os.makedirs(output_dir, exist_ok=True)
     output_paths = []
     # Save each channel as a separate TIFF file
-    channels = [img[:, :, i] for i in range(img.shape[2])] if len(img.shape) > 1 else [img]
+    channels = [img[:, :, i] for i in range(img.shape[2])] if len(img.shape) > 2 else [img]
     for i, channel in enumerate(channels):  # Assuming channels are in the last dimension
         output_file = os.path.join(output_dir, f"{prefix}_{i + 1}.tif")
         output_paths.append(output_file)

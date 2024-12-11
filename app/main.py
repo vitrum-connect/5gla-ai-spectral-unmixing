@@ -31,8 +31,8 @@ def home():
 @app.route('/run')
 def run():
     logger.info("Run endpoint triggered")
-    try:
-        for pm in psis.iter_unprocessed():# path_channels, path_parts, number_part
+    for pm in psis.iter_unprocessed():# path_channels, path_parts, number_part
+        try:
             logger.info(f"Processing unprocessed data for: {pm.file_paths_stationary}")
 
             captured, im_aligned_reflectance, im_aligned_reflectance_norm, registered_images_folder = image_registration.run(pm.cache_folder)
@@ -56,10 +56,10 @@ def run():
             psis.upload_image_unmixed(savi_norm, pm, name_appendix="_savi")
             logger.info(f"Uploaded savi")
 
-
-    except Exception as e:
-        logger.exception("Error during run execution")
-        return f"Run failed: {str(e)}", 500
+        except Exception as e:
+            logger.exception(f"Error during processing of {pm.file_paths_stationary}: {str(e)}")
+            continue
+            # return f"Error during processing of {pm.file_paths_stationary}: {str(e)}", 500
 
     logger.info("Run completed successfully")
     return "Run completed"
