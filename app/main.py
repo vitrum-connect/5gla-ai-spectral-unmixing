@@ -3,7 +3,7 @@ import time
 import logging
 from flask import Flask
 from apscheduler.schedulers.background import BackgroundScheduler
-from app.modules import image_registration, unmixing
+from app.modules import image_registration, unmixing, plant_indices
 from app.modules.persistent_storage_integration_service import PersistentStorageIntegrationService
 
 # Set up logging
@@ -31,28 +31,35 @@ def home():
 @app.route('/run')
 def run():
     logger.info("Run endpoint triggered")
-    try:
-        for pm in psis.iter_unprocessed():# path_channels, path_parts, number_part
+    for pm in psis.iter_unprocessed():# path_channels, path_parts, number_part
+        try:
             logger.info(f"Processing unprocessed data for: {pm.file_paths_stationary}")
 
-            captured, im_aligned, registered_images_folder = image_registration.run(pm.cache_folder)
+            captured, im_aligned_reflectance, im_aligned_reflectance_norm, registered_images_folder = image_registration.run(pm.cache_folder)
             logger.info(f"Image registration completed")
 
-            psis.upload_image_registered(im_aligned, pm)
+            psis.upload_image_registered(im_aligned_reflectance_norm, pm)
             logger.info(f"Uploaded registered image")
 
-            unmixed, abundances = unmixing.run(registered_images_folder)
+            reconstructed, abundances, endmembers_plant, endmembers_non_plant = unmixing.run(im_aligned_reflectance)
             logger.info(f"Spectral unmixing completed")
 
-            psis.upload_image_unmixed(unmixed, pm, name_appendix="reconstructed")
+            psis.upload_image_unmixed(reconstructed, pm, name_appendix="_reconstructed")
             logger.info(f"Uploaded unmixed image (reconstructed)")
 
             psis.upload_image_unmixed(abundances, pm, name_appendix="_abundances")
             logger.info(f"Uploaded unmixed image (abundances)")
 
-    except Exception as e:
-        logger.exception("Error during run execution")
-        return f"Run failed: {str(e)}", 500
+            savi, savi_norm = plant_indices.savi(abundances, im_aligned_reflectance, endmembers_plant.shape[0])
+            logger.info(f"savi index complete")
+
+            psis.upload_image_unmixed(savi_norm, pm, name_appendix="_savi")
+            logger.info(f"Uploaded savi")
+
+        except Exception as e:
+            logger.exception(f"Error during processing of {pm.file_paths_stationary}: {str(e)}")
+            continue
+            # return f"Error during processing of {pm.file_paths_stationary}: {str(e)}", 500
 
     logger.info("Run completed successfully")
     return "Run completed"
