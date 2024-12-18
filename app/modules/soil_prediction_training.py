@@ -202,7 +202,7 @@ def load_images_and_labels(image_folder_1, image_folder_2, df, assumed_capillari
 
 def train_torch(image_folder, image_folder2, df, batch_size=16, num_epochs=10,
                 learning_rate=0.001, test_size=0.2, random_state=42,
-                model_save_path='multispectral_model.pth'):
+                model_save_path='multispectral_model.pth', assumed_capillarity=0.5, verbose=False):
     """
     Train a CNN model on multispectral image data.
 
@@ -218,20 +218,23 @@ def train_torch(image_folder, image_folder2, df, batch_size=16, num_epochs=10,
         model_save_path (str): Path to save the trained model.
     """
     device = get_device()
-    images, labels = prepare_data(image_folder, image_folder2, df)
+    images, labels = prepare_data(image_folder, image_folder2, df, assumed_capillarity)
     train_loader, test_loader = create_dataloaders(images, labels, batch_size, test_size, random_state)
 
     model = initialize_model(images, labels, device)
     criterion = nn.MSELoss()
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
+    val_mse_all = []
     for epoch in range(num_epochs):
         train_loss = train_one_epoch(model, train_loader, criterion, optimizer, device)
         val_mse = validate_model(model, test_loader, device)
-
-        print(f"Epoch [{epoch + 1}/{num_epochs}], Loss: {train_loss:.4f}, Validation MSE: {val_mse:.4f}")
+        val_mse_all.append(val_mse)
+        if verbose:
+            print(f"Epoch [{epoch + 1}/{num_epochs}], Loss: {train_loss:.4f}, Validation MSE: {val_mse:.4f}")
 
     save_model(model, model_save_path)
+    return min(val_mse_all)
 
 
 def get_device():
@@ -241,7 +244,7 @@ def get_device():
     return device
 
 
-def prepare_data(image_folder, image_folder2, df):
+def prepare_data(image_folder, image_folder2, df, assumed_capillarity=0.5):
     """
     Load images, crop them, and prepare labels.
 
@@ -255,7 +258,7 @@ def prepare_data(image_folder, image_folder2, df):
         labels (ndarray): Corresponding labels.
     """
     # Load and process images and labels
-    images, labels = load_images_and_labels(image_folder, image_folder2, df)
+    images, labels = load_images_and_labels(image_folder, image_folder2, df, assumed_capillarity)
     images = crop_images(images)
     images = np.array(images).transpose((0, 3, 1, 2))  # Ensure proper shape for PyTorch
     labels = np.array(labels)
@@ -388,7 +391,9 @@ if __name__ == "__main__":
     df = read_soil_moisture()
 
     # Train the model
-    train_torch(image_folder=image_folder1, image_folder2=image_folder2, df=df,
-                batch_size=32, num_epochs=20, learning_rate=0.0005, test_size=0.2)
+    for assumed_capillarity in np.linspace(0.01, 1., 20):
+        val_mse = train_torch(image_folder=image_folder1, image_folder2=image_folder2, df=df,
+                    batch_size=32, num_epochs=10, learning_rate=0.001, test_size=0.2, assumed_capillarity=assumed_capillarity)
+        print(f"{assumed_capillarity} : {val_mse}")
     # df = read_soil_moisture()
     # create_plot(df)0
