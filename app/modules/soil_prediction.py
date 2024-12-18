@@ -187,9 +187,9 @@ def load_images_and_labels(image_folder_1, image_folder_2, df, assumed_capillari
                     delta_time = timedelta(minutes=delta_time_minutes)
                     row_name = f'Time Difference({measure_depth})'
                     df[row_name] = (df['Date Time'] - delta_time - capture_time).abs()
-
                     # Find the row with the minimum time difference
-                    matched_row = df.loc[df[row_name].idxmin()]
+                    idx_min = df[row_name].idxmin()
+                    matched_row = df.loc[idx_min]
                     moisture = matched_row[f"A{i + 1}({measure_depth})"]
                     moistures.append(moisture)
 
