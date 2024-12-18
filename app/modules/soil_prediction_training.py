@@ -14,12 +14,8 @@ from torch.utils.data import DataLoader, Dataset
 from tifffile import imread
 import numpy as np
 from sklearn.metrics import mean_squared_error
-# files = psis._list_files_in_bucket(psis.bucket_name_for_stationary_images)
-# for file in files:
-#     capture_date = psis.get_time_of_capture(psis.bucket_name_for_stationary_images, file.object_name)
-#     print(capture_date)
-#     break
-# Read CSV into a DataFrame
+from datetime import datetime, timedelta
+
 
 def read_soil_moisture():
     df = pd.read_csv(r'../../data/Bodenfeuchte/Ostfalia011.csv')
@@ -47,15 +43,6 @@ def create_plot(df):
     # Show the plot
     plt.show()
 
-
-# capture_date = datetime.strptime(capture_date, "%Y:%m:%d %H:%M:%S")  # Adjust format as needed
-# for date in df['Date Time']:
-#     # Find the row with the minimum time difference
-#     closest_row = df.loc[(date - capture_date).abs().idxmin()]
-
-
-
-from datetime import datetime, timedelta
 
 def get_dates_to_objects(psis, bucket_name):
     dates_to_objects = {}
@@ -102,8 +89,6 @@ def donwload_closest_all(df):
     dates_to_objects = get_dates_to_objects(psis, "cluster-odm")
     for ref_date in df['Date Time']:
         download_closest_image(psis, "cluster-odm", ref_date, dates_to_objects)
-
-
 
 # Define a custom dataset class
 class MultispectralDataset(Dataset):
@@ -384,7 +369,6 @@ def save_model(model, file_path):
 
 
 if __name__ == "__main__":
-    # psis = PersistentStorageIntegrationService()
     # Example paths and DataFrame
     image_folder1 = r"C:\Users\HEW\Projekte\5gla-ai-spectral-unmixing\data\registered"
     image_folder2 = r"C:\Users\HEW\Projekte\5gla-ai-spectral-unmixing\data\unmixing"
@@ -395,5 +379,3 @@ if __name__ == "__main__":
         val_mse = train_torch(image_folder=image_folder1, image_folder2=image_folder2, df=df,
                     batch_size=32, num_epochs=10, learning_rate=0.001, test_size=0.2, assumed_capillarity=assumed_capillarity)
         print(f"{assumed_capillarity} : {val_mse}")
-    # df = read_soil_moisture()
-    # create_plot(df)0

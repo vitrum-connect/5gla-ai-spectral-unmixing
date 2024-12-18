@@ -2,7 +2,6 @@ import numpy as np
 import torch
 from tifffile import imread
 
-from app.modules.soil_prediction import crop_images
 from app.modules.model import CNNModel
 
 
@@ -22,8 +21,6 @@ def load_model_and_infer(model_path, image_path1, image_path2, device=None):
     if device is None:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
-
-
 
     # Load the trained model
     # Load metadata and model state
@@ -55,24 +52,6 @@ def load_model_and_infer(model_path, image_path1, image_path2, device=None):
     prediction = output.cpu().numpy()
     return prediction
 
-
-# def preprocess_image(image_path):
-#     """
-#     Load an image and preprocess it for the model.
-#
-#     Args:
-#         image_path (str): Path to the image file.
-#
-#     Returns:
-#         torch.Tensor: Preprocessed image tensor of shape [1, C, H, W].
-#     """
-#     image = imread(image_path)  # Read image
-#     if len(image.shape) == 2:  # Grayscale image, add channel dimension
-#         image = np.expand_dims(image, axis=-1)
-#     image = np.transpose(image, (2, 0, 1))  # Convert to [C, H, W]
-#     image = crop_images([image])[0]  # Crop to the smallest dimensions if needed
-#     image_tensor = torch.tensor(image, dtype=torch.float32).unsqueeze(0)  # Add batch dim
-#     return image_tensor
 
 if __name__ == "__main__":
     model_path = "multispectral_model.pth"
