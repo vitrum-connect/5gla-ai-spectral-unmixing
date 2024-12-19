@@ -4,6 +4,7 @@ import logging
 from flask import Flask
 from apscheduler.schedulers.background import BackgroundScheduler
 from app.modules import image_registration, unmixing, plant_indices
+from app.modules.ai.soil_prediction_inference import load_model_and_infer
 from app.modules.persistent_storage_integration_service import PersistentStorageIntegrationService
 
 # Set up logging
@@ -55,6 +56,13 @@ def run():
 
             psis.upload_image_unmixed(savi_norm, pm, name_appendix="_savi")
             logger.info(f"Uploaded savi")
+
+            prediction = load_model_and_infer(im_aligned_reflectance_norm, savi_norm,
+                                              model_path="modules/ai/multispectral_model.pth")
+            logger.info(f"created prediction")
+
+            psis.upload_prediction_ai(prediction, pm, name_appendix="_prediction")
+            logger.info(f"Uploaded prediction")
 
         except Exception as e:
             logger.exception(f"Error during processing of {pm.file_paths_stationary}: {str(e)}")

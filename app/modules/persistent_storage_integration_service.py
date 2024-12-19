@@ -3,6 +3,7 @@ from minio import Minio
 from minio.error import S3Error
 import logging
 from io import BytesIO
+import yaml
 
 import tifffile
 from tifffile import TiffWriter
@@ -51,6 +52,11 @@ class PersistentStorageIntegrationService:
     def upload_image_unmixed(self, image_data, pm: PathsManager, name_appendix=""):
         bucket_name = self.bucket_name_for_unmixed
         self._upload_image(image_data, bucket_name, pm, name_appendix)
+
+    def upload_prediction_ai(self, prediction, pm: PathsManager, name_appendix=""):
+        bucket_name = self.bucket_name_for_ai_results
+        yaml_content = {f"{depth * 10 + 5} cm": float(value) for depth, value in enumerate(prediction.flat)}
+        self.upload_yaml_data(yaml_content, bucket_name, pm, name_appendix)
 
     def _upload_image(self, image_data, bucket_name, pm: PathsManager, name_appendix=""):
         file_path = pm.file_path_registered
@@ -104,6 +110,47 @@ class PersistentStorageIntegrationService:
         except S3Error as e:
             self.logger.error("Could not store image on S3.", exc_info=True)
             raise RuntimeError("Could not store image on S3. Check log for details.") from e
+
+    def upload_yaml_data(self, data, bucket_name, pm: PathsManager, name_appendix=""):
+        """
+        Uploads a YAML file to the specified bucket.
+
+        Args:
+            data (dict): The data to be serialized into a YAML file.
+            pm (PathsManager): Path manager containing file paths.
+            name_appendix (str): Optional string to append to the file name.
+        """
+        file_path = pm.file_path_registered.replace(".tif", ".yaml")
+
+        if name_appendix:
+            splitted = file_path.split(".")
+            splitted[-2] += name_appendix
+            file_path = ".".join(splitted)
+
+        try:
+            if not self.client.bucket_exists(bucket_name):
+                self.client.make_bucket(bucket_name)
+                self.logger.info(f"Created bucket {bucket_name}")
+
+            # Create a YAML string and encode it as bytes
+            yaml_data = yaml.safe_dump({"predicted": data}, default_flow_style=False)
+            yaml_bytes = yaml_data.encode('utf-8')  # Convert the YAML string to bytes
+            # Create a buffer and write the YAML bytes into it
+            yaml_buffer = BytesIO(yaml_bytes)
+
+            # Upload YAML file to S3
+            self.client.put_object(
+                bucket_name,
+                file_path,
+                data=yaml_buffer,
+                length=yaml_buffer.getbuffer().nbytes,
+                content_type="application/x-yaml"
+            )
+            self.logger.info(f"YAML file stored successfully: {file_path}")
+
+        except S3Error as e:
+            self.logger.error("Could not store YAML file on S3.", exc_info=True)
+            raise RuntimeError("Could not store YAML file on S3. Check log for details.") from e
 
     def _list_files_in_bucket(self, bucket_name):
         try:
