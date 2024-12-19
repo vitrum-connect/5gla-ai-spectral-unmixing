@@ -1,5 +1,6 @@
 from tifffile import TiffFile
 
+from app.modules.dataset import MultispectralDataset
 from app.modules.model import CNNModel
 from app.paths_handler import PathsManager
 import pandas as pd
@@ -10,7 +11,8 @@ from sklearn.model_selection import train_test_split
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
+from torchvision import transforms
 from tifffile import imread
 import numpy as np
 from sklearn.metrics import mean_squared_error
@@ -84,26 +86,7 @@ def download_closest_image(psis, bucket_name, given_date, dates_to_objects):
     else:
         print("No images found.")
 
-def donwload_closest_all(df):
-    # Example usage
-    dates_to_objects = get_dates_to_objects(psis, "cluster-odm")
-    for ref_date in df['Date Time']:
-        download_closest_image(psis, "cluster-odm", ref_date, dates_to_objects)
-
 # Define a custom dataset class
-class MultispectralDataset(Dataset):
-    def __init__(self, images, labels):
-        self.images = images
-        self.labels = labels
-
-    def __len__(self):
-        return len(self.images)
-
-    def __getitem__(self, idx):
-        image = self.images[idx]
-        label = self.labels[idx]
-        return torch.tensor(image, dtype=torch.float32), torch.tensor(label, dtype=torch.float32)
-
 def crop_images(images):
     min_height = min(img.shape[0] for img in images)
     min_width = min(img.shape[1] for img in images)
@@ -114,6 +97,7 @@ def crop_images(images):
         cropped = img[:min_height, :min_width, ...]  # Crop height and width
         cropped_images.append(cropped)
     return cropped_images
+
 
 # Define a function to extract capture times and match to data
 def load_images_and_labels(image_folder_1, image_folder_2, df, assumed_capillarity=0.5,
@@ -185,6 +169,37 @@ def load_images_and_labels(image_folder_1, image_folder_2, df, assumed_capillari
     return images, labels
 
 
+def train_one_epoch(model, train_loader, criterion, optimizer, device):
+    """
+    Train the model for one epoch.
+
+    Args:
+        model: The CNN model.
+        train_loader: DataLoader for training data.
+        criterion: Loss function.
+        optimizer: Optimizer for model parameters.
+        device: Computation device.
+
+    Returns:
+        Average loss for the epoch.
+    """
+    model.train()
+    running_loss = 0.0
+
+    for images, labels in train_loader:
+        images, labels = images.to(device), labels.to(device)
+        optimizer.zero_grad()
+
+        outputs = model(images)
+        loss = criterion(outputs, labels)
+        loss.backward()
+        optimizer.step()
+
+        running_loss += loss.item()
+
+    return running_loss / len(train_loader)
+
+
 def train_torch(image_folder, image_folder2, df, batch_size=16, num_epochs=10,
                 learning_rate=0.001, test_size=0.2, random_state=42,
                 model_save_path='multispectral_model.pth', assumed_capillarity=0.5, verbose=False):
@@ -204,6 +219,8 @@ def train_torch(image_folder, image_folder2, df, batch_size=16, num_epochs=10,
     """
     device = get_device()
     images, labels = prepare_data(image_folder, image_folder2, df, assumed_capillarity)
+    # labels /= np.max(labels)
+    # print(labels)
     train_loader, test_loader = create_dataloaders(images, labels, batch_size, test_size, random_state)
 
     model = initialize_model(images, labels, device)
@@ -264,9 +281,18 @@ def create_dataloaders(images, labels, batch_size, test_size, random_state):
     Returns:
         train_loader, test_loader: DataLoader objects for training and testing.
     """
+    # Define your transform pipeline
+    transform = transforms.Compose([
+        transforms.ToTensor(),  # Convert images to PyTorch tensors
+        transforms.Lambda(lambda x: x.to(torch.float32)),  # Enforce float32 type
+        # transforms.Normalize(mean=[0.5, 0.5, 0.5, 0.5, 0.5, 0.5], std=[0.2, 0.2, 0.2, 0.2, 0.2, 0.2])
+        # transforms.Normalize(mean=0.5, std=0.2)
+        transforms.Lambda(lambda x: x / 65535.0),
+        transforms.Lambda(lambda x: x.permute(1, 2, 0)),  # Permute axes from HWC to CHW (channels, height, width)
+    ])
     X_train, X_test, y_train, y_test = train_test_split(images, labels, test_size=test_size, random_state=random_state)
-    train_dataset = MultispectralDataset(X_train, y_train)
-    test_dataset = MultispectralDataset(X_test, y_test)
+    train_dataset = MultispectralDataset(X_train, y_train, transform=transform)
+    test_dataset = MultispectralDataset(X_test, y_test, transform=transform)
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
@@ -288,37 +314,6 @@ def initialize_model(images, labels, device):
     test_input = torch.zeros(images[0:1].shape)  # Create test input to calculate flattened size
     model = CNNModel.from_test_input(output_size=labels[0].size, test_input=test_input).to(device)
     return model
-
-
-def train_one_epoch(model, train_loader, criterion, optimizer, device):
-    """
-    Train the model for one epoch.
-
-    Args:
-        model: The CNN model.
-        train_loader: DataLoader for training data.
-        criterion: Loss function.
-        optimizer: Optimizer for model parameters.
-        device: Computation device.
-
-    Returns:
-        Average loss for the epoch.
-    """
-    model.train()
-    running_loss = 0.0
-
-    for images, labels in train_loader:
-        images, labels = images.to(device), labels.to(device)
-        optimizer.zero_grad()
-
-        outputs = model(images)
-        loss = criterion(outputs, labels)
-        loss.backward()
-        optimizer.step()
-
-        running_loss += loss.item()
-
-    return running_loss / len(train_loader)
 
 
 def validate_model(model, test_loader, device):
@@ -374,8 +369,15 @@ if __name__ == "__main__":
     image_folder2 = r"C:\Users\HEW\Projekte\5gla-ai-spectral-unmixing\data\unmixing"
     df = read_soil_moisture()
 
-    # Train the model
-    for assumed_capillarity in np.linspace(0.01, 1., 20):
-        val_mse = train_torch(image_folder=image_folder1, image_folder2=image_folder2, df=df,
-                    batch_size=32, num_epochs=10, learning_rate=0.001, test_size=0.2, assumed_capillarity=assumed_capillarity)
-        print(f"{assumed_capillarity} : {val_mse}")
+    # val_mse = train_torch(image_folder=image_folder1, image_folder2=image_folder2, df=df,
+    #                       batch_size=16, num_epochs=100, learning_rate=0.0005, test_size=0.2,
+    #                       assumed_capillarity=0.1, verbose=True)
+
+    # experiment to determine capillarity, best: 0.17
+    for assumed_capillarity in np.linspace(0.01, 0.5, 10):
+        abc = []
+        for i in range (5):
+            val_mse = train_torch(image_folder=image_folder1, image_folder2=image_folder2, df=df,
+                        batch_size=32, num_epochs=20, learning_rate=0.0005, test_size=0.2, assumed_capillarity=assumed_capillarity)
+            abc.append(val_mse)
+        print(f"{assumed_capillarity} : {sum(abc) / len(abc)}")

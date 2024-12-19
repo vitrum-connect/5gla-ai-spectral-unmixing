@@ -5,7 +5,13 @@ from tifffile import imread
 from app.modules.model import CNNModel
 
 
-def load_model_and_infer(model_path, image_path1, image_path2, device=None):
+def load_model_and_infer_disk(image_path1, image_path2, device=None, model_path="multispectral_model.pth", ):
+    # Load and preprocess the two images
+    image1 = imread(image_path1)
+    image2 = imread(image_path2)
+    load_model_and_infer(image1, image2, device, model_path)
+
+def load_model_and_infer(image1, image2, device=None, model_path="multispectral_model.pth", ):
     """
     Load a trained model and perform inference on two images.
 
@@ -35,9 +41,6 @@ def load_model_and_infer(model_path, image_path1, image_path2, device=None):
     model.to(device)
     model.eval()
 
-    # Load and preprocess the two images
-    image1 = imread(image_path1)
-    image2 = imread(image_path2)
     # Combine the images into a single input tensor (stack channels)
     image = np.dstack([image1, image2])
     image = image[0:input_shape[2], 0:input_shape[3]].transpose((2, 0, 1))
@@ -58,6 +61,6 @@ if __name__ == "__main__":
     image_path1 = r"C:\Users\HEW\Projekte\5gla-ai-spectral-unmixing\data\registered\Feldversuch KI-Use-Case\1410_1612-2110_1052\007\IMG_1400.tif"
     image_path2 = r"C:\Users\HEW\Projekte\5gla-ai-spectral-unmixing\data\unmixing\Feldversuch KI-Use-Case\1410_1612-2110_1052\007\IMG_1400_savi.tif"
 
-    prediction = load_model_and_infer(model_path, image_path1, image_path2)
+    prediction = load_model_and_infer_disk(model_path, image_path1, image_path2)
     print("Model Prediction:", prediction)
 
