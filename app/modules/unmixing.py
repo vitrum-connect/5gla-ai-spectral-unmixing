@@ -2,13 +2,46 @@ import logging
 import os
 
 import rasterio
-from spectral import unmix
 from sklearn.cluster import KMeans
 import numpy as np
 from app.modules.utils import reconstruct_image_with_removed_endmembers, plot, save_channels
 
 logger = logging.getLogger(__name__)
 
+def unmix(data, members, regularization = 1e-8):
+    '''
+    Perform linear unmixing on image data.
+
+    USAGE: mix = unmix(data, members)
+
+    ARGUMENTS:
+        data                The MxNxB image data to be unmixed
+        members             An CxB array of C endmembers
+    RETURN VALUE:
+        mix                 An MxNxC array of endmember fractions.
+
+    unmix performs linear unmixing on the image data.  After calling the
+    function, mix[:,:,i] will then represent the fractional abundances
+    for the i'th endmember. If the result of unmix is returned into 'mix',
+    then an array of indices of greatest fractional endmembers is obtained
+    by argmax(mix).
+
+    Note that depending on endmembers given, fractional abundances for
+    endmembers may be negative.
+    '''
+    assert members.shape[1] == data.shape[2], \
+        'Matrix dimensions are not aligned.'
+
+    # Calculate the pseudo inverse
+    pi = np.dot(members, np.transpose(members))
+    pi += np.eye(pi.shape[0]) * regularization
+    pi = np.dot(np.linalg.inv(pi), members)
+    (M, N, B) = data.shape
+    unmixed = np.zeros((M, N, members.shape[0]), float)
+    for i in range(M):
+        for j in range(N):
+            unmixed[i, j] = np.dot(pi, data[i, j].astype(float))
+    return unmixed
 
 def find_best_n_elbow(data, max_clusters=9):
     # Store the sum of squared distances (inertia) for each value of n

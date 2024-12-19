@@ -1,11 +1,11 @@
 import os
-from xxsubtype import bench
-
-import numpy as np
 from minio import Minio
 from minio.error import S3Error
 import logging
 from io import BytesIO
+
+import tifffile
+from tifffile import TiffWriter
 
 from app.paths_handler import PathsManager
 
@@ -54,30 +54,53 @@ class PersistentStorageIntegrationService:
 
     def _upload_image(self, image_data, bucket_name, pm: PathsManager, name_appendix=""):
         file_path = pm.file_path_registered
+        file_path_metadata = pm.file_paths_cache[0]  # Path to the metadata TIFF file
+
         if name_appendix:
             splitted = file_path.split(".")
             splitted[-2] += name_appendix
             file_path = ".".join(splitted)
-        try:
-            # Ensure image data is C-contiguous
-            if not image_data.flags['C_CONTIGUOUS']:
-                image_data = np.ascontiguousarray(image_data)
 
+        # Extract metadata from the source TIFF file
+        if file_path_metadata:
+            relevant_tags = ["Make", "Model", "Software", "DateTime", "ExifTag", "GPSTag|OlympusSIS2",
+                             "PlanarConfiguration"]
+            try:
+                with tifffile.TiffFile(file_path_metadata) as tif:
+                    tags = tif.pages[0].tags
+                    tag_tuples = [(v.code, v.dtype, v.valuebytecount, v.value, False) for tags, v in tags.items()
+                                  if v.name in relevant_tags]
+            except Exception as e:
+                self.logger.error(f"Failed to load metadata from {file_path_metadata}: {e}")
+                raise
+
+        try:
             if not self.client.bucket_exists(bucket_name):
                 self.client.make_bucket(bucket_name)
                 self.logger.info(f"Created bucket {bucket_name}")
 
-            # Convert the image data to bytes if needed
-            image_bytes = BytesIO(image_data.tobytes())
+            # Create buffer to hold the TIFF image
+            tiff_buffer = BytesIO()
+            with TiffWriter(tiff_buffer) as tiff_writer:
+                tiff_writer.write(
+                    image_data,
+                    photometric='minisblack',  # Replace with your image settings
+                    planarconfig='contig',
+                    extratags=tag_tuples
+                )
 
+            tiff_buffer.seek(0)
+
+            # Upload TIFF file to S3
             self.client.put_object(
                 bucket_name,
                 file_path,
-                data=image_bytes,
-                length=len(image_data.tobytes()),
-                content_type="application/octet-stream"
+                data=tiff_buffer,
+                length=tiff_buffer.getbuffer().nbytes,
+                content_type="image/tiff"
             )
             self.logger.info(f"Image stored successfully: {file_path}")
+
         except S3Error as e:
             self.logger.error("Could not store image on S3.", exc_info=True)
             raise RuntimeError("Could not store image on S3. Check log for details.") from e
@@ -89,6 +112,20 @@ class PersistentStorageIntegrationService:
         except S3Error as e:
             self.logger.error(f"Error listing files in bucket {bucket_name}: {e}")
             return []
+
+    def get_time_of_capture(self, bucket_name, object_name):
+        # Download object into memory
+        try:
+            response = self.client.get_object(bucket_name, object_name)
+            with BytesIO(response.data) as tiff_data:
+                with tifffile.TiffFile(tiff_data) as tif:
+                    # Metadata is often stored in the TIFF tags
+                    tags = tif.pages[0].tags
+                    time_of_capture = tags.get('DateTime', None)
+                    return time_of_capture.value if time_of_capture else None
+        except Exception as e:
+            print(f"Error extracting metadata from {object_name}: {e}")
+            return None
 
     def iter_unprocessed(self):
         unprocessed = self._identify_unprocessed()
