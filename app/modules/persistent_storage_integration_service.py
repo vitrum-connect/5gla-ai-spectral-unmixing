@@ -8,6 +8,9 @@ import yaml
 import tifffile
 from tifffile import TiffWriter
 
+import tifffile
+from tifffile import TiffWriter
+
 from app.paths_handler import PathsManager
 
 
