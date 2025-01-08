@@ -84,7 +84,12 @@ The `PersistentStorageIntegrationService` class manages S3-compatible storage:
    - Computes the SAVI index.
    - Outputs normalized SAVI images.
 
-4. **Data Upload:**
+4  **Moisture prediction:**
+   - Computes predicted soil moisture for 9 depths.
+   - based on multispectral images.
+   - training script included
+
+5**Data Upload:**
    - Uploads all outputs to appropriate S3 buckets.
 
 ## Logging
